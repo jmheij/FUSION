@@ -28,7 +28,7 @@ Typical use cases:
 Run the app from the repository root. `app.R` expects these files/folders to exist:
 
 - `app.R`
-- `functions/funs_jh.R`
+- `funs.R`
 - `app_components/UI_side/landing_panel.R`
 - `app_components/UI_side/population_definition_panel.R`
 - `app_components/UI_side/msfit_upload_panel.R`
@@ -41,20 +41,9 @@ If any are missing, the app may fail to start.
 
 ---
 
-## Installation and setup
+## To run the app
 
-### 1) Restore packages (recommended)
-
-This project uses `renv` for reproducibility.
-
-```r
-install.packages("renv")   # if needed
-renv::restore()
-```
-
-### 2) Run the app
-
-From the project root in R/RStudio:
+From the project root in R/RStudio (i.e., open `FUSION - UI v1 2026.Rproj` and then):
 
 ```r
 source("app.R")
