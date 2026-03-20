@@ -112,7 +112,7 @@ Validation rules:
 ## Workflow overview (UI guide, details under figure)
 
 <p align="center">
-  <img src="www/process\\\_figure.jpg" alt="FUSION process overview" width="650"/>
+  <img src="www/process_figure.jpg" alt="FUSION process overview" width="650"/>
 </p>
 
 *Figure: High-level workflow of the FUSION tool (upload inputs, define population/scenarios, and generate outputs).*
