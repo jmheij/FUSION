@@ -1,0 +1,224 @@
+---
+title: "Inputs and results for scenario: `r params$scenario$label`"
+output:
+  html_document:
+    toc: true
+    self_contained: true
+params:
+  global_inputs: NULL
+  scenario:      NULL
+  reward_df:     NULL
+  trace_list:    NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  out.width = "100%", fig.width = 10, fig.height = 4
+)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(reshape2)
+library(plotly)
+library(htmltools)
+```
+
+## 1. Global inputs
+
+### 1.1. Strata definitions
+
+```{r}
+df_strata <- data.frame(
+  Strata = params$global_inputs$strata_labels,
+  Weight = params$global_inputs$strata_weights,
+  stringsAsFactors = FALSE
+)
+kable(df_strata, caption = "Strata names and population weights")
+```
+
+### 1.2. Starting state distributions
+
+```{r}
+kable(
+  params$global_inputs$state_dist,
+  caption = "Starting state distribution per strata"
+)
+```
+
+---
+
+## 2. Scenario “`r params$scenario$label`”
+
+- **ID**: `r params$scenario$scenario_id`
+- **# time windows**: `r params$scenario$n_time_windows`
+- **Time window breakpoints**: `r params$scenario$time_window_durations`
+
+### 2.2. Time-window matrices {.tabset}
+
+```{r tw-matrices, results='asis'}
+tws <- params$scenario$time_windows
+
+for (i in seq_along(tws)) {
+  lab <- tws[[i]]$label
+  mat <- tws[[i]]$matrix
+  # convert to data.frame so kable picks up rownames
+  df_mat <- as.data.frame(mat, stringsAsFactors = FALSE)
+  rownames(df_mat) <- rownames(mat)
+
+  # emit a level-3 header (one tab per window)
+  cat("#### ", lab, "\n\n", sep = "")
+  
+  # a clean HTML table
+  print(
+    knitr::kable(
+      t(df_mat),
+      caption = paste("Scaling matrix for:", lab),
+      format = "html",
+      table.attr = 'class="table table-striped"'
+    )
+  )
+  cat("\n")
+}
+```
+
+### 2.3. Inputted rewards {.tabset}
+
+```{r rewards-inputs, results='asis'}
+rwds <- params$scenario$rewards
+
+for (i in seq_along(rwds)) {
+  rwd   <- rwds[[i]]
+  label <- rwd$reward_label
+
+  # Reward-level tabset
+  cat("#### Reward ", i, ": ", label, " {.tabset}\n\n", sep = "")
+
+  # State reward vs Transition reward
+  cat("##### State reward {.tabset}\n\n")
+  sr_list <- rwd$sr
+  for (tw in names(sr_list)) {
+    cat("###### ", tw, " {.tabset}\n\n", sep = "")
+    variants <- sr_list[[tw]]
+    for (var in names(variants)) {
+      cat("####### ", var, " {.tabset}\n\n", sep = "")
+      mat <- variants[[var]]
+      df_mat <- as.data.frame(mat, stringsAsFactors = FALSE)
+      rownames(df_mat) <- rownames(mat)
+      print(
+        knitr::kable(
+          df_mat,
+          caption    = paste("State reward:", label, "-", tw, "/", var),
+          format     = "html",
+          table.attr = 'class="table table-striped"'
+        )
+      )
+      cat("\n")
+    }
+  }
+
+  cat("##### Transition reward {.tabset}\n\n")
+  tr_list <- rwd$tr
+  for (tw in names(tr_list)) {
+    cat("###### ", tw, " {.tabset}\n\n", sep = "")
+    variants <- tr_list[[tw]]
+    for (var in names(variants)) {
+      cat("####### ", var, " {.tabset}\n\n", sep = "")
+      mat <- variants[[var]]
+      df_mat <- as.data.frame(mat, stringsAsFactors = FALSE)
+      rownames(df_mat) <- rownames(mat)
+      print(
+        knitr::kable(
+          df_mat,
+          caption    = paste("Transition reward:", label, "-", tw, "/", var),
+          format     = "html",
+          table.attr = 'class="table table-striped"'
+        )
+      )
+      cat("\n")
+    }
+  }
+}
+```
+
+
+---
+
+## 3. Reward results
+
+```{r}
+reactable(params$reward_df,
+					filterable         = TRUE,
+          searchable         = FALSE,
+          showPageSizeOptions= TRUE,
+          defaultPageSize    = 10,
+          pagination         = TRUE,
+          highlight          = TRUE
+        )
+```
+
+---
+
+## 4. Markov traces
+
+### 4.1. Pooled population
+
+```{r}
+tp <- melt(
+  params$trace_list[["pooled"]]$state_probabilities,
+  id.vars       = "time",
+  variable.name = "State",
+  value.name    = "Value"
+)
+		p <- ggplot(tp, aes(time, Value, colour = State)) +
+			geom_line(size = 0.5) +
+			scale_y_continuous(limits = range(tp$Value)) +
+			labs(
+				title  = "",
+				x      = "Time",
+				y      = "Occupancy prop.",
+				colour = "State"
+			) +
+			theme_minimal() +
+			theme(
+				plot.title   = element_text(size = 14),
+				axis.title.x = element_text(size = 12),
+				axis.title.y = element_text(size = 12),
+				axis.text.x  = element_text(size = 12),
+				axis.text.y  = element_text(size = 12),
+				legend.text  = element_text(size = 10)
+			)
+		ggplotly(p)
+
+```
+
+### 4.2. By strata
+
+```{r}
+strata_names  <- setdiff(names(params$trace_list), "pooled")
+label_lookup  <- setNames(params$global_inputs$strata_labels, strata_names)
+
+plots <- vector("list", length(strata_names))
+i <- 1
+for (s in strata_names) {
+  df_s <- params$trace_list[[s]]$state_probabilities
+  df_long <- reshape2::melt(df_s, id.vars = "time",
+                            variable.name = "State", value.name = "Value")
+
+  p <- ggplot(df_long, aes(time, Value, colour = State)) +
+    geom_line() +
+    labs(x = "Time", y = "Occupancy probability") +
+    theme_minimal()
+
+  label <- label_lookup[[s]]
+  if (is.null(label) || is.na(label)) label <- s  # fallback
+
+  plots[[i]] <- ggplotly(p, tooltip = c("time", "State", "Value")) %>%
+    layout(title = list(text = paste("Strata:", label)))
+
+  i <- i + 1
+}
+
+tagList(plots)
+
+```
